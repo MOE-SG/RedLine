@@ -1,0 +1,1041 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PDF Layer Editor MVP</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --panel-2: #eef2f8;
+      --text: #162033;
+      --muted: #68758a;
+      --line: #d9e0eb;
+      --accent: #2f6fed;
+      --accent-2: #174fb5;
+      --danger: #c5333f;
+      --shadow: 0 12px 30px rgba(22, 32, 51, 0.12);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input, select, textarea { font: inherit; }
+
+    .app {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr) 300px;
+      min-height: 100vh;
+    }
+
+    .sidebar, .inspector {
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      padding: 18px;
+      overflow: auto;
+    }
+
+    .inspector {
+      border-right: 0;
+      border-left: 1px solid var(--line);
+    }
+
+    .brand {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    .logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #2f6fed, #6f4ff2);
+      box-shadow: var(--shadow);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      margin: 22px 0 10px;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .hint { color: var(--muted); font-size: 12px; margin: 2px 0 12px; }
+
+    .toolbar-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .tool-button, .primary, .secondary, .danger {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      border-radius: 11px;
+      min-height: 38px;
+      padding: 8px 10px;
+      cursor: pointer;
+      transition: 0.15s ease;
+      text-align: center;
+    }
+
+    .tool-button:hover, .secondary:hover { border-color: #b8c5d8; transform: translateY(-1px); }
+    .tool-button.active { border-color: var(--accent); background: #eaf1ff; color: var(--accent-2); font-weight: 700; }
+    .primary { width: 100%; background: var(--accent); border-color: var(--accent); color: white; font-weight: 700; }
+    .primary:hover { background: var(--accent-2); }
+    .secondary { width: 100%; background: var(--panel-2); }
+    .danger { width: 100%; background: #fff2f3; border-color: #ffd0d4; color: var(--danger); }
+
+    .field { margin: 10px 0; }
+    .field label { display: block; color: var(--muted); font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: white;
+      color: var(--text);
+    }
+
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    .main {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      min-width: 0;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.85);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+
+    .topbar-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .status { color: var(--muted); font-size: 13px; }
+
+    .workspace {
+      overflow: auto;
+      padding: 28px;
+    }
+
+    .empty-state {
+      max-width: 760px;
+      margin: 10vh auto 0;
+      background: var(--panel);
+      border: 1px dashed #b8c5d8;
+      border-radius: var(--radius);
+      padding: 36px;
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+
+    .empty-state h3 { font-size: 28px; margin: 0 0 10px; letter-spacing: -0.04em; }
+    .empty-state p { color: var(--muted); margin: 0 auto 20px; max-width: 560px; }
+
+    .page {
+      position: relative;
+      width: max-content;
+      margin: 0 auto 28px;
+      background: white;
+      box-shadow: var(--shadow);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .page.active { outline: 3px solid rgba(47,111,237,0.45); }
+    .pdf-canvas, .overlay-canvas { display: block; }
+    .overlay-canvas { position: absolute; inset: 0; cursor: crosshair; }
+
+    .page-label {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      z-index: 2;
+      background: rgba(22,32,51,0.72);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      pointer-events: none;
+    }
+
+    .object-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .object-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 9px 10px;
+      background: white;
+      cursor: pointer;
+    }
+
+    .object-card.selected { border-color: var(--accent); background: #eaf1ff; }
+    .object-meta { color: var(--muted); font-size: 12px; }
+
+    .kbd {
+      display: inline-block;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      border-radius: 6px;
+      padding: 1px 6px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #162033;
+      color: white;
+      padding: 10px 14px;
+      border-radius: 999px;
+      opacity: 0;
+      pointer-events: none;
+      transition: 0.2s ease;
+      z-index: 20;
+    }
+
+    .toast.show { opacity: 1; }
+
+    @media (max-width: 1050px) {
+      .app { grid-template-columns: 280px minmax(0, 1fr); }
+      .inspector { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); max-height: 40vh; }
+    }
+
+    @media (max-width: 760px) {
+      .app { display: block; }
+      .sidebar, .inspector { border: 0; border-bottom: 1px solid var(--line); }
+      .workspace { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>PDF Layer Editor</h1>
+          <div class="hint">MVP for overlay, redaction, image export, and PDF flattening.</div>
+        </div>
+      </div>
+
+      <h2>Open</h2>
+      <div class="field">
+        <label for="pdfInput">PDF file</label>
+        <input id="pdfInput" type="file" accept="application/pdf" />
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="renderScale">Render scale</label>
+          <select id="renderScale">
+            <option value="1.5">1.5x preview</option>
+            <option value="2" selected>2x sharp</option>
+            <option value="3">3x large</option>
+            <option value="4">4x very large</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="exportScale">Export image</label>
+          <select id="exportScale">
+            <option value="1">1x</option>
+            <option value="2" selected>2x</option>
+            <option value="3">3x</option>
+            <option value="4">4x</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="secondary" id="rerenderBtn">Re-render PDF</button>
+
+      <h2>Tools</h2>
+      <div class="toolbar-grid" id="tools">
+        <button class="tool-button active" data-tool="select">Select</button>
+        <button class="tool-button" data-tool="pen">Pen</button>
+        <button class="tool-button" data-tool="highlighter">Highlighter</button>
+        <button class="tool-button" data-tool="line">Line</button>
+        <button class="tool-button" data-tool="arrow">Arrow</button>
+        <button class="tool-button" data-tool="rect">Box</button>
+        <button class="tool-button" data-tool="ellipse">Circle / ellipse</button>
+        <button class="tool-button" data-tool="polygon">Polygon</button>
+        <button class="tool-button" data-tool="freefill">Hand fill</button>
+        <button class="tool-button" data-tool="redact">Remove / cover</button>
+        <button class="tool-button" data-tool="text">Text</button>
+        <button class="tool-button" data-tool="image">Image</button>
+      </div>
+      <input id="imageInput" type="file" accept="image/*" hidden />
+
+      <h2>Style</h2>
+      <div class="field-row">
+        <div class="field">
+          <label for="strokeColor">Line color</label>
+          <input id="strokeColor" type="color" value="#111827" />
+        </div>
+        <div class="field">
+          <label for="fillColor">Fill color</label>
+          <input id="fillColor" type="color" value="#ffffff" />
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="lineWidth">Line width</label>
+          <input id="lineWidth" type="number" min="1" max="80" value="4" />
+        </div>
+        <div class="field">
+          <label for="opacity">Opacity</label>
+          <input id="opacity" type="number" min="0.05" max="1" step="0.05" value="1" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="fillMode">Fill pattern</label>
+        <select id="fillMode">
+          <option value="none">No fill</option>
+          <option value="solid">Solid fill</option>
+          <option value="diagonal">Diagonal hatch</option>
+          <option value="cross">Cross hatch</option>
+          <option value="dots">Dots</option>
+        </select>
+      </div>
+
+      <h2>Text</h2>
+      <div class="field">
+        <label for="textValue">Text value</label>
+        <textarea id="textValue" rows="3" placeholder="Type text, then click page"></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="fontSize">Font size</label>
+          <input id="fontSize" type="number" min="6" max="180" value="24" />
+        </div>
+        <div class="field">
+          <label for="fontFamily">Font</label>
+          <select id="fontFamily">
+            <option value="Helvetica, Arial, sans-serif">Helvetica</option>
+            <option value="Times New Roman, serif">Times</option>
+            <option value="Courier New, monospace">Courier</option>
+            <option value="Georgia, serif">Georgia</option>
+          </select>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <strong id="docTitle">No PDF loaded</strong>
+          <div class="status" id="status">Open a PDF to begin.</div>
+        </div>
+        <div class="topbar-actions">
+          <button class="secondary" id="undoBtn">Undo</button>
+          <button class="secondary" id="clearPageBtn">Clear page edits</button>
+          <button class="secondary" id="exportPngBtn">Export active page PNG</button>
+          <button class="secondary" id="exportZipBtn">Export all pages PNG ZIP</button>
+          <button class="primary" id="exportPdfBtn">Export edited PDF</button>
+        </div>
+      </div>
+      <section class="workspace" id="workspace">
+        <div class="empty-state" id="emptyState">
+          <h3>Open a PDF and edit visually</h3>
+          <p>Draw overlays, add text or images, cover original content, export high-resolution page images, or flatten everything back into a PDF.</p>
+          <p><span class="kbd">Select</span> moves existing objects. <span class="kbd">Delete</span> removes the selected object. Drag shapes to size them.</p>
+          <p><span class="kbd">Polygon</span> click points, double-click to finish. <span class="kbd">Hand fill</span> drag an enclosed freehand area.</p>
+        </div>
+      </section>
+    </main>
+
+    <aside class="inspector">
+      <h2>Selected object</h2>
+      <div id="selectedPanel" class="hint">No object selected.</div>
+      <button class="danger" id="deleteBtn">Delete selected</button>
+
+      <h2>Objects on page</h2>
+      <div id="objectList" class="object-list"></div>
+
+      <h2>MVP notes</h2>
+      <p class="hint">“Remove” covers content with a white/redaction shape. Exported PDFs are flattened for reliability.</p>
+      <p class="hint">For true content-level PDF surgery, a later backend can parse text/vector operators and apply structural redactions.</p>
+    </aside>
+  </div>
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const pdfjsLib = window.pdfjsLib;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    const state = {
+      pdfBytes: null,
+      pdfDoc: null,
+      fileName: 'edited-document.pdf',
+      pages: [],
+      activePageIndex: 0,
+      selectedObjectId: null,
+      tool: 'select',
+      dragging: null,
+      imageToPlace: null,
+      activePolygon: null
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const workspace = $('workspace');
+    const toast = $('toast');
+
+    const controls = {
+      pdfInput: $('pdfInput'), renderScale: $('renderScale'), exportScale: $('exportScale'), rerenderBtn: $('rerenderBtn'),
+      strokeColor: $('strokeColor'), fillColor: $('fillColor'), lineWidth: $('lineWidth'), opacity: $('opacity'), fillMode: $('fillMode'),
+      textValue: $('textValue'), fontSize: $('fontSize'), fontFamily: $('fontFamily'), imageInput: $('imageInput')
+    };
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    function uid() {
+      return Math.random().toString(36).slice(2) + Date.now().toString(36);
+    }
+
+    function currentStyle() {
+      return {
+        stroke: controls.strokeColor.value,
+        fill: controls.fillColor.value,
+        lineWidth: Number(controls.lineWidth.value) || 1,
+        opacity: Number(controls.opacity.value) || 1,
+        fillMode: controls.fillMode.value,
+        fontSize: Number(controls.fontSize.value) || 24,
+        fontFamily: controls.fontFamily.value
+      };
+    }
+
+    function getActivePage() {
+      return state.pages[state.activePageIndex];
+    }
+
+    function setTool(tool) {
+      state.tool = tool;
+      state.selectedObjectId = null;
+      document.querySelectorAll('.tool-button').forEach((button) => button.classList.toggle('active', button.dataset.tool === tool));
+      finishActivePolygon(false);
+      if (tool === 'image') controls.imageInput.click();
+      refreshAllOverlays();
+      refreshInspector();
+    }
+
+    document.querySelectorAll('.tool-button').forEach((button) => button.addEventListener('click', () => setTool(button.dataset.tool)));
+
+    controls.pdfInput.addEventListener('change', async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      state.fileName = file.name.replace(/\.pdf$/i, '') + '-edited.pdf';
+      state.pdfBytes = await file.arrayBuffer();
+      await loadPdf();
+    });
+
+    controls.rerenderBtn.addEventListener('click', async () => {
+      if (!state.pdfBytes) return showToast('Open a PDF first.');
+      await loadPdf(true);
+    });
+
+    controls.imageInput.addEventListener('change', async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const dataUrl = await fileToDataUrl(file);
+      const image = await loadImage(dataUrl);
+      state.imageToPlace = { dataUrl, width: image.width, height: image.height };
+      showToast('Image ready. Click a page to place it.');
+    });
+
+    async function loadPdf(keepEdits = false) {
+      setStatus('Rendering PDF pages...');
+      const existingEdits = keepEdits ? state.pages.map((page) => page.objects) : [];
+      state.pdfDoc = await pdfjsLib.getDocument({ data: state.pdfBytes.slice(0) }).promise;
+      state.pages = [];
+      state.activePageIndex = 0;
+      state.selectedObjectId = null;
+      workspace.innerHTML = '';
+      $('docTitle').textContent = state.fileName.replace(/-edited\.pdf$/i, '.pdf');
+
+      const scale = Number(controls.renderScale.value);
+      for (let index = 1; index <= state.pdfDoc.numPages; index++) {
+        const pdfPage = await state.pdfDoc.getPage(index);
+        const viewport = pdfPage.getViewport({ scale });
+        const pageWrap = document.createElement('div');
+        pageWrap.className = 'page' + (index === 1 ? ' active' : '');
+        pageWrap.dataset.index = String(index - 1);
+
+        const label = document.createElement('div');
+        label.className = 'page-label';
+        label.textContent = `Page ${index}`;
+
+        const pdfCanvas = document.createElement('canvas');
+        pdfCanvas.className = 'pdf-canvas';
+        pdfCanvas.width = Math.floor(viewport.width);
+        pdfCanvas.height = Math.floor(viewport.height);
+        pdfCanvas.style.width = `${viewport.width / scale}px`;
+        pdfCanvas.style.height = `${viewport.height / scale}px`;
+
+        const overlayCanvas = document.createElement('canvas');
+        overlayCanvas.className = 'overlay-canvas';
+        overlayCanvas.width = pdfCanvas.width;
+        overlayCanvas.height = pdfCanvas.height;
+        overlayCanvas.style.width = pdfCanvas.style.width;
+        overlayCanvas.style.height = pdfCanvas.style.height;
+
+        pageWrap.style.width = pdfCanvas.style.width;
+        pageWrap.style.height = pdfCanvas.style.height;
+        pageWrap.append(label, pdfCanvas, overlayCanvas);
+        workspace.appendChild(pageWrap);
+
+        await pdfPage.render({ canvasContext: pdfCanvas.getContext('2d'), viewport }).promise;
+
+        const pageState = {
+          pdfPage,
+          viewport,
+          scale,
+          element: pageWrap,
+          pdfCanvas,
+          overlayCanvas,
+          objects: existingEdits[index - 1] || []
+        };
+        state.pages.push(pageState);
+        bindOverlayEvents(pageState, index - 1);
+        drawOverlay(pageState);
+      }
+      setStatus(`${state.pdfDoc.numPages} page${state.pdfDoc.numPages === 1 ? '' : 's'} loaded.`);
+      refreshInspector();
+    }
+
+    function bindOverlayEvents(page, pageIndex) {
+      const canvas = page.overlayCanvas;
+      canvas.addEventListener('pointerdown', (event) => onPointerDown(event, pageIndex));
+      canvas.addEventListener('pointermove', (event) => onPointerMove(event));
+      canvas.addEventListener('pointerup', (event) => onPointerUp(event));
+      canvas.addEventListener('pointerleave', (event) => onPointerUp(event));
+      page.element.addEventListener('click', () => setActivePage(pageIndex));
+    }
+
+    function setActivePage(pageIndex) {
+      state.activePageIndex = pageIndex;
+      state.pages.forEach((page, index) => page.element.classList.toggle('active', index === pageIndex));
+      refreshInspector();
+    }
+
+    function pointerPosition(event, page) {
+      const rect = page.overlayCanvas.getBoundingClientRect();
+      return {
+        x: (event.clientX - rect.left) * (page.overlayCanvas.width / rect.width),
+        y: (event.clientY - rect.top) * (page.overlayCanvas.height / rect.height)
+      };
+    }
+
+    function onPointerDown(event, pageIndex) {
+      setActivePage(pageIndex);
+      const page = state.pages[pageIndex];
+      const pos = pointerPosition(event, page);
+      const style = currentStyle();
+
+      if (state.tool === 'select') {
+        const hit = findObjectAt(page, pos.x, pos.y);
+        state.selectedObjectId = hit ? hit.id : null;
+        if (hit) {
+          state.dragging = { type: 'move', pageIndex, objectId: hit.id, start: pos, original: JSON.parse(JSON.stringify(hit)) };
+        }
+        drawOverlay(page);
+        refreshInspector();
+        return;
+      }
+
+      if (state.tool === 'text') {
+        const text = controls.textValue.value.trim() || 'Text';
+        page.objects.push({ id: uid(), type: 'text', x: pos.x, y: pos.y, text, ...style });
+        drawOverlay(page);
+        refreshInspector();
+        return;
+      }
+
+      if (state.tool === 'image') {
+        if (!state.imageToPlace) return showToast('Choose an image first.');
+        const width = Math.min(page.overlayCanvas.width * 0.35, state.imageToPlace.width * page.scale / 2);
+        const height = width * (state.imageToPlace.height / state.imageToPlace.width);
+        page.objects.push({ id: uid(), type: 'image', x: pos.x, y: pos.y, width, height, dataUrl: state.imageToPlace.dataUrl, opacity: style.opacity });
+        drawOverlay(page);
+        refreshInspector();
+        return;
+      }
+
+      if (state.tool === 'polygon') {
+        handlePolygonPoint(page, pageIndex, pos, style, event.detail >= 2);
+        return;
+      }
+
+      const object = createDrawableObject(pos, style);
+      page.objects.push(object);
+      state.dragging = { type: 'draw', pageIndex, objectId: object.id, start: pos };
+      drawOverlay(page);
+    }
+
+    function createDrawableObject(pos, style) {
+      const common = { id: uid(), x: pos.x, y: pos.y, stroke: style.stroke, fill: style.fill, lineWidth: style.lineWidth, opacity: style.opacity, fillMode: style.fillMode };
+      if (state.tool === 'pen' || state.tool === 'highlighter') {
+        return { ...common, type: state.tool, points: [{ x: pos.x, y: pos.y }], opacity: state.tool === 'highlighter' ? 0.35 : style.opacity, lineWidth: state.tool === 'highlighter' ? Math.max(style.lineWidth, 14) : style.lineWidth };
+      }
+      if (state.tool === 'freefill') return { ...common, type: 'freefill', points: [{ x: pos.x, y: pos.y }], closed: true };
+      if (state.tool === 'redact') return { ...common, type: 'rect', stroke: '#ffffff', fill: '#ffffff', fillMode: 'solid', width: 1, height: 1 };
+      return { ...common, type: state.tool, width: 1, height: 1 };
+    }
+
+    function onPointerMove(event) {
+      if (!state.dragging) return;
+      const page = state.pages[state.dragging.pageIndex];
+      const pos = pointerPosition(event, page);
+      const object = page.objects.find((item) => item.id === state.dragging.objectId);
+      if (!object) return;
+
+      if (state.dragging.type === 'move') {
+        const dx = pos.x - state.dragging.start.x;
+        const dy = pos.y - state.dragging.start.y;
+        moveObjectFromOriginal(object, state.dragging.original, dx, dy);
+      } else if (object.type === 'pen' || object.type === 'highlighter' || object.type === 'freefill') {
+        object.points.push({ x: pos.x, y: pos.y });
+      } else {
+        object.width = pos.x - state.dragging.start.x;
+        object.height = pos.y - state.dragging.start.y;
+      }
+      drawOverlay(page);
+    }
+
+    function onPointerUp() {
+      if (!state.dragging) return;
+      const page = state.pages[state.dragging.pageIndex];
+      const object = page.objects.find((item) => item.id === state.dragging.objectId);
+      if (object && object.width < 0) { object.x += object.width; object.width = Math.abs(object.width); }
+      if (object && object.height < 0) { object.y += object.height; object.height = Math.abs(object.height); }
+      if (object && object.type === 'freefill' && object.points.length < 3) page.objects = page.objects.filter((item) => item.id !== object.id);
+      state.dragging = null;
+      refreshInspector();
+    }
+
+    function handlePolygonPoint(page, pageIndex, pos, style, shouldFinish) {
+      if (!state.activePolygon || state.activePolygon.pageIndex !== pageIndex) {
+        finishActivePolygon(false);
+        const object = { id: uid(), type: 'polygon', x: pos.x, y: pos.y, points: [{ x: pos.x, y: pos.y }], stroke: style.stroke, fill: style.fill, lineWidth: style.lineWidth, opacity: style.opacity, fillMode: style.fillMode, closed: false };
+        page.objects.push(object);
+        state.activePolygon = { pageIndex, objectId: object.id };
+        state.selectedObjectId = object.id;
+        drawOverlay(page);
+        refreshInspector();
+        return;
+      }
+
+      const object = page.objects.find((item) => item.id === state.activePolygon.objectId);
+      if (!object) return;
+      object.points.push({ x: pos.x, y: pos.y });
+      state.selectedObjectId = object.id;
+      if (shouldFinish || nearPoint(pos, object.points[0], 14)) finishActivePolygon(true);
+      drawOverlay(page);
+      refreshInspector();
+    }
+
+    function finishActivePolygon(keepIfValid = true) {
+      if (!state.activePolygon) return;
+      const page = state.pages[state.activePolygon.pageIndex];
+      const object = page?.objects.find((item) => item.id === state.activePolygon.objectId);
+      if (object) {
+        object.closed = object.points.length >= 3;
+        if (!keepIfValid || object.points.length < 3) page.objects = page.objects.filter((item) => item.id !== object.id);
+      }
+      state.activePolygon = null;
+      if (page) drawOverlay(page);
+    }
+
+    function nearPoint(a, b, distance) {
+      return Math.hypot(a.x - b.x, a.y - b.y) <= distance;
+    }
+
+    function moveObjectFromOriginal(object, original, dx, dy) {
+      object.x = original.x + dx;
+      object.y = original.y + dy;
+      if (object.points) object.points = original.points.map((point) => ({ x: point.x + dx, y: point.y + dy }));
+    }
+
+    function drawOverlay(page) {
+      const ctx = page.overlayCanvas.getContext('2d');
+      ctx.clearRect(0, 0, page.overlayCanvas.width, page.overlayCanvas.height);
+      for (const object of page.objects) drawObject(ctx, object, object.id === state.selectedObjectId);
+    }
+
+    function drawObject(ctx, object, selected = false) {
+      ctx.save();
+      ctx.globalAlpha = object.opacity ?? 1;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = object.stroke || '#111827';
+      ctx.fillStyle = object.fill || 'transparent';
+      ctx.lineWidth = object.lineWidth || 2;
+
+      if (object.type === 'pen' || object.type === 'highlighter') drawPath(ctx, object);
+      if (object.type === 'freefill' || object.type === 'polygon') drawClosedPath(ctx, object);
+      if (object.type === 'line' || object.type === 'arrow') drawLine(ctx, object, object.type === 'arrow');
+      if (object.type === 'rect') drawRect(ctx, object);
+      if (object.type === 'ellipse') drawEllipse(ctx, object);
+      if (object.type === 'text') drawText(ctx, object);
+      if (object.type === 'image') drawImageObject(ctx, object);
+
+      ctx.globalAlpha = 1;
+      if (selected) drawSelection(ctx, object);
+      ctx.restore();
+    }
+
+    function drawPath(ctx, object) {
+      if (!object.points.length) return;
+      ctx.beginPath();
+      ctx.moveTo(object.points[0].x, object.points[0].y);
+      for (const point of object.points.slice(1)) ctx.lineTo(point.x, point.y);
+      ctx.stroke();
+    }
+
+    function drawClosedPath(ctx, object) {
+      if (!object.points.length) return;
+      ctx.beginPath();
+      ctx.moveTo(object.points[0].x, object.points[0].y);
+      for (const point of object.points.slice(1)) ctx.lineTo(point.x, point.y);
+      if (object.closed !== false && object.points.length > 2) ctx.closePath();
+      applyFill(ctx, object);
+      if (object.fillMode !== 'none' && object.points.length > 2) ctx.fill();
+      ctx.stroke();
+      drawPattern(ctx, object, false, object.points);
+    }
+
+    function drawLine(ctx, object, arrow) {
+      ctx.beginPath();
+      ctx.moveTo(object.x, object.y);
+      ctx.lineTo(object.x + object.width, object.y + object.height);
+      ctx.stroke();
+      if (arrow) {
+        const angle = Math.atan2(object.height, object.width);
+        const endX = object.x + object.width;
+        const endY = object.y + object.height;
+        const size = Math.max(10, object.lineWidth * 4);
+        ctx.beginPath();
+        ctx.moveTo(endX, endY);
+        ctx.lineTo(endX - size * Math.cos(angle - Math.PI / 6), endY - size * Math.sin(angle - Math.PI / 6));
+        ctx.moveTo(endX, endY);
+        ctx.lineTo(endX - size * Math.cos(angle + Math.PI / 6), endY - size * Math.sin(angle + Math.PI / 6));
+        ctx.stroke();
+      }
+    }
+
+    function drawRect(ctx, object) {
+      applyFill(ctx, object);
+      if (object.fillMode !== 'none') ctx.fillRect(object.x, object.y, object.width, object.height);
+      if (object.stroke !== 'transparent' && object.lineWidth > 0) ctx.strokeRect(object.x, object.y, object.width, object.height);
+      drawPattern(ctx, object);
+    }
+
+    function drawEllipse(ctx, object) {
+      ctx.beginPath();
+      ctx.ellipse(object.x + object.width / 2, object.y + object.height / 2, Math.abs(object.width / 2), Math.abs(object.height / 2), 0, 0, Math.PI * 2);
+      applyFill(ctx, object);
+      if (object.fillMode !== 'none') ctx.fill();
+      ctx.stroke();
+      drawPattern(ctx, object, true);
+    }
+
+    function drawText(ctx, object) {
+      ctx.fillStyle = object.stroke || '#111827';
+      ctx.font = `${object.fontSize || 24}px ${object.fontFamily || 'Helvetica, Arial, sans-serif'}`;
+      ctx.textBaseline = 'top';
+      const lines = String(object.text || '').split('\n');
+      lines.forEach((line, index) => ctx.fillText(line, object.x, object.y + index * (object.fontSize || 24) * 1.25));
+    }
+
+    function drawImageObject(ctx, object) {
+      if (!object.cachedImage) {
+        object.cachedImage = new Image();
+        object.cachedImage.onload = () => refreshAllOverlays();
+        object.cachedImage.src = object.dataUrl;
+      }
+      if (object.cachedImage.complete) ctx.drawImage(object.cachedImage, object.x, object.y, object.width, object.height);
+    }
+
+    function applyFill(ctx, object) {
+      ctx.fillStyle = object.fill || '#ffffff';
+    }
+
+    function drawPattern(ctx, object, ellipse = false, clipPoints = null) {
+      if (!['diagonal', 'cross', 'dots'].includes(object.fillMode)) return;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, (object.opacity ?? 1) * 0.7);
+      ctx.strokeStyle = object.stroke || '#111827';
+      ctx.fillStyle = object.stroke || '#111827';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      if (clipPoints?.length) {
+        ctx.moveTo(clipPoints[0].x, clipPoints[0].y);
+        for (const point of clipPoints.slice(1)) ctx.lineTo(point.x, point.y);
+        ctx.closePath();
+      } else if (ellipse) ctx.ellipse(object.x + object.width / 2, object.y + object.height / 2, Math.abs(object.width / 2), Math.abs(object.height / 2), 0, 0, Math.PI * 2);
+      else ctx.rect(object.x, object.y, object.width, object.height);
+      ctx.clip();
+      const bounds = objectBounds(object);
+      const left = bounds.x;
+      const right = bounds.x + bounds.width;
+      const top = bounds.y;
+      const bottom = bounds.y + bounds.height;
+      if (object.fillMode === 'dots') {
+        for (let x = left; x <= right; x += 14) for (let y = top; y <= bottom; y += 14) {
+          ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill();
+        }
+      } else {
+        for (let x = left - (bottom - top); x <= right; x += 12) {
+          ctx.beginPath(); ctx.moveTo(x, bottom); ctx.lineTo(x + bottom - top, top); ctx.stroke();
+        }
+        if (object.fillMode === 'cross') {
+          for (let x = left; x <= right + (bottom - top); x += 12) {
+            ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x - (bottom - top), bottom); ctx.stroke();
+          }
+        }
+      }
+      ctx.restore();
+    }
+
+    function drawSelection(ctx, object) {
+      const box = objectBounds(object);
+      ctx.save();
+      ctx.strokeStyle = '#2f6fed';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([7, 5]);
+      ctx.strokeRect(box.x - 5, box.y - 5, box.width + 10, box.height + 10);
+      ctx.restore();
+    }
+
+    function objectBounds(object) {
+      if (object.points) {
+        const xs = object.points.map((point) => point.x);
+        const ys = object.points.map((point) => point.y);
+        return { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+      }
+      if (object.type === 'text') {
+        const fontSize = object.fontSize || 24;
+        const lines = String(object.text || '').split('\n');
+        const width = Math.max(...lines.map((line) => line.length), 1) * fontSize * 0.58;
+        return { x: object.x, y: object.y, width, height: lines.length * fontSize * 1.25 };
+      }
+      return { x: object.x, y: object.y, width: object.width || 1, height: object.height || 1 };
+    }
+
+    function findObjectAt(page, x, y) {
+      for (const object of [...page.objects].reverse()) {
+        const box = objectBounds(object);
+        const pad = Math.max(8, object.lineWidth || 2);
+        if (x >= box.x - pad && x <= box.x + box.width + pad && y >= box.y - pad && y <= box.y + box.height + pad) return object;
+      }
+      return null;
+    }
+
+    function refreshAllOverlays() {
+      state.pages.forEach(drawOverlay);
+    }
+
+    function refreshInspector() {
+      const page = getActivePage();
+      const selected = page?.objects.find((item) => item.id === state.selectedObjectId);
+      $('selectedPanel').innerHTML = selected ? `<strong>${labelFor(selected)}</strong><div class="object-meta">x ${Math.round(selected.x)}, y ${Math.round(selected.y)}</div>` : 'No object selected.';
+      const list = $('objectList');
+      list.innerHTML = '';
+      if (!page) return;
+      page.objects.forEach((object, index) => {
+        const card = document.createElement('div');
+        card.className = 'object-card' + (object.id === state.selectedObjectId ? ' selected' : '');
+        card.innerHTML = `<strong>${index + 1}. ${labelFor(object)}</strong><div class="object-meta">${Math.round(objectBounds(object).width)} × ${Math.round(objectBounds(object).height)}</div>`;
+        card.addEventListener('click', () => {
+          state.selectedObjectId = object.id;
+          drawOverlay(page);
+          refreshInspector();
+        });
+        list.appendChild(card);
+      });
+    }
+
+    function labelFor(object) {
+      const labels = { pen: 'Pen drawing', highlighter: 'Highlighter', line: 'Line', arrow: 'Arrow', rect: 'Box / redaction', ellipse: 'Ellipse', polygon: 'Polygon', freefill: 'Hand-drawn fill', text: 'Text', image: 'Image' };
+      return labels[object.type] || object.type;
+    }
+
+    $('undoBtn').addEventListener('click', () => {
+      const page = getActivePage();
+      if (!page || !page.objects.length) return;
+      page.objects.pop();
+      state.selectedObjectId = null;
+      drawOverlay(page);
+      refreshInspector();
+    });
+
+    $('clearPageBtn').addEventListener('click', () => {
+      const page = getActivePage();
+      if (!page) return;
+      if (!confirm('Clear all edits on the active page?')) return;
+      page.objects = [];
+      state.selectedObjectId = null;
+      drawOverlay(page);
+      refreshInspector();
+    });
+
+    $('deleteBtn').addEventListener('click', deleteSelected);
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+        deleteSelected();
+      }
+    });
+
+    function deleteSelected() {
+      const page = getActivePage();
+      if (!page || !state.selectedObjectId) return;
+      page.objects = page.objects.filter((object) => object.id !== state.selectedObjectId);
+      state.selectedObjectId = null;
+      drawOverlay(page);
+      refreshInspector();
+    }
+
+    $('exportPngBtn').addEventListener('click', async () => {
+      if (!state.pdfDoc) return showToast('Open a PDF first.');
+      const canvas = await renderFlattenedPage(state.activePageIndex, Number(controls.exportScale.value));
+      downloadDataUrl(canvas.toDataURL('image/png'), `page-${state.activePageIndex + 1}.png`);
+    });
+
+    $('exportZipBtn').addEventListener('click', async () => {
+      if (!state.pdfDoc) return showToast('Open a PDF first.');
+      setStatus('Exporting PNG ZIP...');
+      const zip = new JSZip();
+      const scale = Number(controls.exportScale.value);
+      for (let i = 0; i < state.pages.length; i++) {
+        const canvas = await renderFlattenedPage(i, scale);
+        const blob = await canvasToBlob(canvas, 'image/png');
+        zip.file(`page-${i + 1}.png`, blob);
+      }
+      const content = await zip.generateAsync({ type: 'blob' });
+      downloadBlob(content, 'edited-pages.zip');
+      setStatus('PNG ZIP exported.');
+    });
+
+    $('exportPdfBtn').addEventListener('click', async () => {
+      if (!state.pdfDoc) return showToast('Open a PDF first.');
+      setStatus('Flattening edited PDF...');
+      const { PDFDocument } = PDFLib;
+      const outPdf = await PDFDocument.create();
+      for (let i = 0; i < state.pages.length; i++) {
+        const canvas = await renderFlattenedPage(i, 2);
+        const pngBytes = await canvasToArrayBuffer(canvas, 'image/png');
+        const png = await outPdf.embedPng(pngBytes);
+        const originalViewport = state.pages[i].pdfPage.getViewport({ scale: 1 });
+        const page = outPdf.addPage([originalViewport.width, originalViewport.height]);
+        page.drawImage(png, { x: 0, y: 0, width: originalViewport.width, height: originalViewport.height });
+      }
+      const bytes = await outPdf.save();
+      downloadBlob(new Blob([bytes], { type: 'application/pdf' }), state.fileName);
+      setStatus('Edited PDF exported.');
+    });
+
+    async function renderFlattenedPage(pageIndex, multiplier = 2) {
+      const page = state.pages[pageIndex];
+      const baseViewport = page.pdfPage.getViewport({ scale: page.scale * multiplier });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.floor(baseViewport.width);
+      canvas.height = Math.floor(baseViewport.height);
+      const ctx = canvas.getContext('2d');
+      await page.pdfPage.render({ canvasContext: ctx, viewport: baseViewport }).promise;
+      ctx.save();
+      ctx.scale(multiplier, multiplier);
+      for (const object of page.objects) drawObject(ctx, object, false);
+      ctx.restore();
+      return canvas;
+    }
+
+    function setStatus(message) { $('status').textContent = message; }
+
+    function fileToDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function loadImage(src) {
+      return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = src;
+      });
+    }
+
+    function canvasToBlob(canvas, type) {
+      return new Promise((resolve) => canvas.toBlob(resolve, type));
+    }
+
+    async function canvasToArrayBuffer(canvas, type) {
+      const blob = await canvasToBlob(canvas, type);
+      return await blob.arrayBuffer();
+    }
+
+    function downloadDataUrl(dataUrl, fileName) {
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = fileName;
+      link.click();
+    }
+
+    function downloadBlob(blob, fileName) {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    }
+  </script>
+</body>
+</html>
