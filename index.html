@@ -98,7 +98,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     .app {
       display: grid;
       grid-template-columns: 320px minmax(0, 1fr) 300px;
-      min-height: 100vh;
+      height: 100vh;
+      overflow: hidden;
     }
 
     .sidebar, .inspector {
@@ -106,6 +107,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       border-right: 1px solid var(--line);
       padding: 18px;
       overflow: auto;
+      height: 100vh;
     }
 
     .inspector {
@@ -142,6 +144,85 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       text-transform: uppercase;
       letter-spacing: 0.08em;
     }
+
+    /* Collapsible inspector sections */
+    .inspector-section { border-bottom: 1px solid var(--line); margin-bottom: 2px; }
+    .inspector-section:last-child { border-bottom: 0; }
+
+    .inspector-section summary {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0 8px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .inspector-section summary::-webkit-details-marker { display: none; }
+    .inspector-section summary::after {
+      content: '›';
+      font-size: 16px;
+      font-weight: 400;
+      color: var(--muted);
+      transform: rotate(90deg);
+      transition: transform 0.18s ease;
+      display: inline-block;
+    }
+    .inspector-section[open] summary::after { transform: rotate(270deg); }
+    .inspector-section summary:hover { color: var(--text); }
+    .inspector-section .section-body { padding-bottom: 10px; }
+
+    /* Plain-text find box */
+    .find-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .find-row input {
+      flex: 1;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 7px 10px;
+      background: white;
+      color: var(--text);
+    }
+    .find-row button {
+      flex-shrink: 0;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 7px 11px;
+      cursor: pointer;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .find-row button:hover { border-color: #b8c5d8; background: white; }
+    .find-nav {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .find-nav button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 3px 9px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .find-nav button:hover { background: white; border-color: #b8c5d8; }
+    .find-nav button:disabled { opacity: 0.35; cursor: default; }
+    .find-status { flex: 1; }
 
     .hint { color: var(--muted); font-size: 12px; margin: 2px 0 12px; }
 
@@ -239,10 +320,46 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
+    .color-field { margin: 10px 0; }
+    .color-field label { display: block; color: var(--muted); font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+    .color-swatch-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 5px 8px;
+      background: white;
+      cursor: pointer;
+    }
+    .color-swatch-row:hover { border-color: #b8c5d8; }
+    .color-swatch {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      border: 1px solid rgba(0,0,0,0.12);
+      flex-shrink: 0;
+      pointer-events: none;
+    }
+    .color-hex-label {
+      font-family: "Courier New", monospace;
+      font-size: 13px;
+      color: var(--text);
+      flex: 1;
+    }
+    .color-swatch-row input[type="color"] {
+      opacity: 0;
+      position: absolute;
+      width: 0;
+      height: 0;
+    }
+
     .main {
       display: grid;
       grid-template-rows: auto minmax(0, 1fr);
       min-width: 0;
+      height: 100vh;
+      overflow: hidden;
     }
 
     .topbar {
@@ -251,12 +368,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       justify-content: space-between;
       gap: 14px;
       padding: 10px 16px;
-      background: rgba(255,255,255,0.85);
+      background: rgba(255,255,255,0.95);
       border-bottom: 1px solid var(--line);
       backdrop-filter: blur(8px);
-      position: sticky;
-      top: 0;
       z-index: 5;
+      flex-shrink: 0;
     }
 
     .doc-status { min-width: 180px; text-align: right; }
@@ -265,7 +381,46 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     .workspace {
       overflow: auto;
       padding: 28px;
+      height: 100%;
     }
+
+    .zoom-bar {
+      position: fixed;
+      bottom: 18px;
+      right: 320px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(22,32,51,0.88);
+      color: white;
+      border-radius: 999px;
+      padding: 6px 10px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.22);
+      font-size: 13px;
+      font-weight: 600;
+      user-select: none;
+    }
+
+    .zoom-bar button {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: white;
+      border-radius: 50%;
+      width: 26px;
+      height: 26px;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .zoom-bar button:hover { background: rgba(255,255,255,0.28); }
+    .zoom-level { min-width: 46px; text-align: center; }
 
     .empty-state {
       max-width: 760px;
@@ -355,6 +510,67 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       white-space: pre-wrap;
     }
 
+    .component-labels {
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fbfcff;
+      overflow: hidden;
+    }
+
+    .component-labels-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 10px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .component-labels-count {
+      background: var(--accent);
+      color: white;
+      border-radius: 999px;
+      padding: 1px 8px;
+      font-size: 11px;
+    }
+
+    .component-labels-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      padding: 8px;
+      max-height: 140px;
+      overflow-y: auto;
+    }
+
+    .comp-chip {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 2px 7px;
+      font-family: "Courier New", monospace;
+      font-size: 12px;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .comp-chip.match {
+      border-color: #2f6fed;
+      background: #eaf1ff;
+      color: var(--accent-2);
+      font-weight: 700;
+    }
+
+    .comp-empty {
+      padding: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
     .kbd {
       display: inline-block;
       border: 1px solid var(--line);
@@ -383,17 +599,22 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     .toast.show { opacity: 1; }
 
     @media (max-width: 1050px) {
-      .app { grid-template-columns: 280px minmax(0, 1fr); }
+      .app { grid-template-columns: 280px minmax(0, 1fr); height: auto; overflow: visible; }
+      .sidebar { height: auto; }
+      .inspector { height: auto; grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); max-height: 40vh; }
+      .main { height: auto; overflow: visible; }
       .topbar { align-items: flex-start; flex-direction: column; }
       .doc-status { text-align: left; }
-      .inspector { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); max-height: 40vh; }
+      .workspace { height: auto; max-height: 70vh; }
+      .zoom-bar { right: 12px; }
     }
 
     @media (max-width: 760px) {
-      .app { display: block; }
-      .sidebar, .inspector { border: 0; border-bottom: 1px solid var(--line); }
+      .app { display: block; height: auto; overflow: visible; }
+      .sidebar, .inspector { border: 0; border-bottom: 1px solid var(--line); height: auto; }
       .menu-panel { position: fixed; left: 12px; right: 12px; top: auto; min-width: 0; }
-      .workspace { padding: 14px; }
+      .workspace { padding: 14px; height: auto; max-height: 70vh; }
+      .zoom-bar { right: 12px; bottom: 10px; }
     }
   </style>
 </head>
@@ -403,8 +624,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <div class="brand">
         <div class="logo" aria-hidden="true"></div>
         <div>
-          <h1>PDF Layer Editor</h1>
-          <div class="hint">MVP for overlay, redaction, image export, and PDF flattening.</div>
+          <h1>PDF/Scanned Document Editor</h1>
+          <div class="hint">SM 2026</div>
         </div>
       </div>
 
@@ -416,9 +637,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           <label for="renderScale">Render scale</label>
           <select id="renderScale">
             <option value="1.5">1.5x preview</option>
-            <option value="2" selected>2x sharp</option>
+            <option value="2">2x sharp</option>
             <option value="3">3x large</option>
-            <option value="4">4x very large</option>
+            <option value="4" selected>4x very large</option>
           </select>
         </div>
         <div class="field">
@@ -436,13 +657,21 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
       <h2>Style</h2>
       <div class="field-row">
-        <div class="field">
-          <label for="strokeColor">Line color</label>
-          <input id="strokeColor" type="color" value="#111827" />
+        <div class="color-field">
+          <label>Line color</label>
+          <div class="color-swatch-row" onclick="document.getElementById('strokeColor').click()">
+            <div class="color-swatch" id="strokeSwatch" style="background:#ff0000"></div>
+            <span class="color-hex-label" id="strokeHexLabel">#ff0000</span>
+            <input id="strokeColor" type="color" value="#ff0000" />
+          </div>
         </div>
-        <div class="field">
-          <label for="fillColor">Fill color</label>
-          <input id="fillColor" type="color" value="#ffffff" />
+        <div class="color-field">
+          <label>Fill color</label>
+          <div class="color-swatch-row" onclick="document.getElementById('fillColor').click()">
+            <div class="color-swatch" id="fillSwatch" style="background:#1900ff"></div>
+            <span class="color-hex-label" id="fillHexLabel">#1900ff</span>
+            <input id="fillColor" type="color" value="#1900ff" />
+          </div>
         </div>
       </div>
       <div class="field-row">
@@ -555,47 +784,124 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         </div>
       </div>
       <section class="workspace" id="workspace">
+        <div id="workspaceInner" style="transform-origin:top left; display:inline-block; min-width:100%;">
         <div class="empty-state" id="emptyState">
           <h3>Open a PDF and edit visually</h3>
           <p>Draw overlays, add text or images, cover original content, export high-resolution page images, or flatten everything back into a PDF.</p>
           <p><span class="kbd">Select</span> moves existing objects. <span class="kbd">Delete</span> removes the selected object. Drag shapes to size them.</p>
           <p><span class="kbd">Polygon</span> click points, double-click to finish. <span class="kbd">Hand fill</span> drag an enclosed freehand area.</p>
         </div>
+        </div><!-- /workspaceInner -->
       </section>
+      <!-- Zoom controls -->
+      <div class="zoom-bar" id="zoomBar">
+        <button id="zoomOutBtn" title="Zoom out (-)">−</button>
+        <span class="zoom-level" id="zoomLabel">100%</span>
+        <button id="zoomInBtn" title="Zoom in (+)">+</button>
+        <button id="zoomResetBtn" title="Reset zoom" style="font-size:11px;border-radius:8px;width:auto;padding:0 8px;">Reset</button>
+      </div>
     </main>
 
     <aside class="inspector">
-      <h2>Selected object</h2>
-      <div id="selectedPanel" class="hint">No object selected.</div>
-      <button class="danger" id="deleteBtn">Delete selected</button>
 
-      <h2>Objects on page</h2>
-      <div id="objectList" class="object-list"></div>
+      <!-- ── Selected object ─────────────────────────────────────── -->
+      <details class="inspector-section" id="sectionSelected">
+        <summary>Selected object</summary>
+        <div class="section-body">
+          <div id="selectedPanel" class="hint">No object selected.</div>
+          <button class="danger" id="deleteBtn">Delete selected</button>
+        </div>
+      </details>
 
-      <h2>OCR searchable layer</h2>
-      <div class="field">
-        <label for="ocrLang">OCR language</label>
-        <input id="ocrLang" value="eng" placeholder="eng, eng+spa, chi_sim" />
-      </div>
-      <div class="field">
-        <label for="regexPattern">Search regex pattern</label>
-        <input id="regexPattern" value="[A-Z]{2,4}\\d{3,6}" placeholder="[A-Z]{2,4}\\d{3,6}" />
-      </div>
-      <div class="hint">Examples: click one to try it.</div>
-      <div class="example-list">
-        <button class="example-chip" data-regex="[A-Z]{2,4}\\d{3,6}">[A-Z]{2,4}\\d{3,6}</button>
-        <button class="example-chip" data-regex="[A-Za-z]{3}[- ]?\\d{4}">[A-Za-z]{3}[- ]?\\d{4}</button>
-        <button class="example-chip" data-regex="[A-Z]{1,3}\\s?\\d{2,5}">[A-Z]{1,3}\\s?\\d{2,5}</button>
-        <button class="example-chip" data-regex="\\b[A-Z]+\\d+\\b">\\b[A-Z]+\\d+\\b</button>
-      </div>
-      <div class="field">
-        <label>Matches on active page</label>
-        <div id="ocrResult" class="ocr-result">Run OCR, then search with a regex.</div>
-      </div>
+      <!-- ── Objects on page ─────────────────────────────────────── -->
+      <details class="inspector-section" open>
+        <summary>Objects on page</summary>
+        <div class="section-body">
+          <div id="objectList" class="object-list"></div>
+        </div>
+      </details>
 
-      <h2>MVP notes</h2>
-      <p class="hint">“Remove” covers content with a white/redaction shape. Exported PDFs are flattened for reliability.</p>
-      <p class="hint">For true content-level PDF surgery, a later backend can parse text/vector operators and apply structural redactions.</p>
+      <!-- ── Find ────────────────────────────────────────────────── -->
+      <details class="inspector-section" open>
+        <summary>Find</summary>
+        <div class="section-body">
+          <div class="find-row">
+            <input id="findText" placeholder="e.g. C1, R14, U1-A" />
+            <button id="findBtn">Find</button>
+          </div>
+          <div class="find-nav">
+            <button id="findPrevBtn" disabled>&#8249;</button>
+            <button id="findNextBtn" disabled>&#8250;</button>
+            <span class="find-status" id="findStatus">Run OCR first.</span>
+          </div>
+        </div>
+      </details>
+
+      <!-- ── OCR searchable layer ─────────────────────────────────── -->
+      <details class="inspector-section" open>
+        <summary>OCR searchable layer</summary>
+        <div class="section-body">
+
+          <!-- OCR settings sub-section -->
+          <details class="inspector-section" id="sectionOcrSettings">
+            <summary>OCR settings</summary>
+            <div class="section-body">
+              <div class="field">
+                <label for="ocrLang">OCR language</label>
+                <input id="ocrLang" value="eng" placeholder="eng, eng+spa, chi_sim" />
+              </div>
+              <div class="field">
+                <label for="regexPattern">Component label regex</label>
+                <input id="regexPattern" value="[A-Z]{1,3}\d+[A-Z]?(?:-[A-Z])?" placeholder="[A-Z]{1,3}\d+" />
+              </div>
+              <div class="hint">Finds labels like C1, CR3, U1-A, U8B. Click an example:</div>
+              <div class="example-list">
+                <button class="example-chip" data-regex="[A-Z]{1,3}\d+[A-Z]?(?:-[A-Z])?>Component labels (C1, CR3, U1-A)</button>
+                <button class="example-chip" data-regex="[A-Z]{1,3}\d+[A-Z]-[A-Z]">Sub-gate refs (U1-A, U8B)</button>
+                <button class="example-chip" data-regex="[A-Z]{2,4}\d{3,6}">Part numbers</button>
+                <button class="example-chip" data-regex="\b[A-Z]+\d+\b">All alphanumeric labels</button>
+              </div>
+            </div>
+          </details>
+
+          <div class="field">
+            <label>Regex matches on active page</label>
+            <div id="ocrResult" class="ocr-result">Run OCR, then search with a regex.</div>
+          </div>
+          <div class="component-labels" id="componentLabelsBox" style="display:none">
+            <div class="component-labels-header">
+              All component labels found
+              <span class="component-labels-count" id="componentCount">0</span>
+            </div>
+            <div class="component-labels-grid" id="componentGrid"></div>
+          </div>
+        </div>
+      </details>
+
+      <!-- ── Manual label placement ──────────────────────────────── -->
+      <details class="inspector-section">
+        <summary>Manual label placement</summary>
+        <div class="section-body">
+          <div class="field">
+            <label for="manualLabel">Label text</label>
+            <input id="manualLabel" placeholder="e.g. R14, CR5, U1-A" />
+          </div>
+          <button class="secondary" id="manualPlaceBtn">Click page to place label</button>
+          <button class="secondary" id="manualDeleteBtn" style="margin-top:6px">Click page to remove label</button>
+          <button class="danger" id="manualClearBtn" style="margin-top:6px">Clear all manual labels</button>
+          <div class="hint" id="manualHint">Type a label, then click the button and click its location on the schematic.</div>
+        </div>
+      </details>
+
+      <!-- ── Notes ───────────────────────────────────────────────── -->
+      <details class="inspector-section">
+        <summary>Notes</summary>
+        <div class="section-body">
+          <p class="hint">“Remove” covers content with a white/redaction shape. Exported PDFs are flattened for reliability.</p>
+          <p class="hint">For true content-level PDF surgery, a later backend can parse text/vector operators and apply structural redactions.</p>
+        </div>
+      </details>
+
     </aside>
   </div>
   <div id="toast" class="toast"></div>
@@ -629,6 +935,56 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       textValue: $('textValue'), fontSize: $('fontSize'), fontFamily: $('fontFamily'), imageInput: $('imageInput'),
       ocrLang: $('ocrLang'), regexPattern: $('regexPattern'), ocrActiveBtn: $('ocrActiveBtn'), ocrAllBtn: $('ocrAllBtn'), findRegexBtn: $('findRegexBtn')
     };
+
+    // ── Zoom ────────────────────────────────────────────────────────────────
+    let zoomLevel = 1.0;
+    const ZOOM_STEP = 0.15;
+    const ZOOM_MIN = 0.25;
+    const ZOOM_MAX = 4.0;
+
+    function applyZoom() {
+      const inner = $('workspaceInner');
+      if (inner) inner.style.transform = `scale(${zoomLevel})`;
+      $('zoomLabel').textContent = Math.round(zoomLevel * 100) + '%';
+    }
+
+    $('zoomInBtn').addEventListener('click', () => {
+      zoomLevel = Math.min(ZOOM_MAX, parseFloat((zoomLevel + ZOOM_STEP).toFixed(2)));
+      applyZoom();
+    });
+    $('zoomOutBtn').addEventListener('click', () => {
+      zoomLevel = Math.max(ZOOM_MIN, parseFloat((zoomLevel - ZOOM_STEP).toFixed(2)));
+      applyZoom();
+    });
+    $('zoomResetBtn').addEventListener('click', () => {
+      zoomLevel = 1.0;
+      applyZoom();
+    });
+    // Ctrl+scroll to zoom
+    workspace.addEventListener('wheel', (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+        zoomLevel = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, parseFloat((zoomLevel + delta).toFixed(2))));
+        applyZoom();
+      }
+    }, { passive: false });
+
+    // ── Color swatches ───────────────────────────────────────────────────────
+    function updateSwatch(inputId, swatchId, labelId) {
+      const input = $(inputId);
+      const swatch = $(swatchId);
+      const label = $(labelId);
+      if (!input || !swatch || !label) return;
+      swatch.style.background = input.value;
+      label.textContent = input.value.toUpperCase();
+    }
+
+    controls.strokeColor.addEventListener('input', () => updateSwatch('strokeColor', 'strokeSwatch', 'strokeHexLabel'));
+    controls.fillColor.addEventListener('input', () => updateSwatch('fillColor', 'fillSwatch', 'fillHexLabel'));
+    // Init
+    updateSwatch('strokeColor', 'strokeSwatch', 'strokeHexLabel');
+    updateSwatch('fillColor', 'fillSwatch', 'fillHexLabel');
 
     function showToast(message) {
       toast.textContent = message;
@@ -728,6 +1084,108 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     controls.ocrAllBtn.addEventListener('click', runOcrAllPages);
     controls.findRegexBtn.addEventListener('click', findRegexMatches);
 
+    $('manualPlaceBtn').addEventListener('click', () => {
+      const text = $('manualLabel').value.trim();
+      if (!text) return showToast('Enter a label first.');
+      setTool('manuallabel');
+      $('manualHint').textContent = `Now click on the schematic where "${text}" is located. Click again to place another.`;
+    });
+
+    $('manualDeleteBtn').addEventListener('click', () => {
+      const page = getActivePage();
+      const manualCount = (page?.ocrWords || []).filter(w => w.manual).length;
+      if (!manualCount) return showToast('No manual labels on this page.');
+      setTool('manuallabeldelete');
+      $('manualHint').textContent = 'Click a green label on the schematic to remove it.';
+    });
+
+    $('manualClearBtn').addEventListener('click', () => {
+      const page = getActivePage();
+      if (!page) return;
+      const count = page.ocrWords.filter(w => w.manual).length;
+      if (!count) return showToast('No manual labels to clear.');
+      page.ocrWords = page.ocrWords.filter(w => !w.manual);
+      page.ocrMatches = page.ocrMatches.filter(w => !w.manual);
+      findRegexMatches();
+      drawOverlay(page);
+      $('manualHint').textContent = 'All manual labels cleared.';
+      showToast(`${count} manual label${count === 1 ? '' : 's'} removed.`);
+    });
+
+    // ── Plain-text Find ────────────────────────────────────────────────────
+    // find state: list of matching ocrWord objects across all pages, current index
+    const findState = { hits: [], index: -1 };
+
+    function runFind() {
+      const query = $('findText').value.trim();
+      if (!query) return;
+      const allWords = state.pages.flatMap((page, pi) =>
+        (page.ocrWords || [])
+          .filter(w => w.text.toLowerCase().includes(query.toLowerCase()))
+          .map(w => ({ word: w, pageIndex: pi }))
+      );
+      findState.hits = allWords;
+      findState.index = allWords.length > 0 ? 0 : -1;
+      updateFindNav();
+      if (allWords.length === 0) {
+        $('findStatus').textContent = 'No matches.';
+        return;
+      }
+      jumpToFindHit();
+    }
+
+    function jumpToFindHit() {
+      if (findState.hits.length === 0 || findState.index < 0) return;
+      const { word, pageIndex } = findState.hits[findState.index];
+
+      // Switch to the right page
+      if (state.activePageIndex !== pageIndex) {
+        state.activePageIndex = pageIndex;
+        state.pages.forEach((p, i) => p.element.classList.toggle('active', i === pageIndex));
+        refreshInspector();
+      }
+
+      // Scroll the page element into view
+      const page = state.pages[pageIndex];
+      page.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      // Highlight this specific word temporarily with a blue ring
+      page._findHighlight = word;
+      drawOverlay(page);
+      clearTimeout(findState._clearTimer);
+      findState._clearTimer = setTimeout(() => {
+        page._findHighlight = null;
+        drawOverlay(page);
+      }, 2000);
+
+      updateFindNav();
+    }
+
+    function updateFindNav() {
+      const total = findState.hits.length;
+      const idx = findState.index;
+      $('findPrevBtn').disabled = total === 0 || idx <= 0;
+      $('findNextBtn').disabled = total === 0 || idx >= total - 1;
+      $('findStatus').textContent = total === 0
+        ? 'No matches.'
+        : `${idx + 1} of ${total}`;
+    }
+
+    $('findBtn').addEventListener('click', runFind);
+    $('findText').addEventListener('keydown', e => { if (e.key === 'Enter') runFind(); });
+    $('findNextBtn').addEventListener('click', () => {
+      if (findState.index < findState.hits.length - 1) {
+        findState.index++;
+        jumpToFindHit();
+      }
+    });
+    $('findPrevBtn').addEventListener('click', () => {
+      if (findState.index > 0) {
+        findState.index--;
+        jumpToFindHit();
+      }
+    });
+
     async function loadPdf(keepEdits = false) {
       setStatus('Rendering PDF pages...');
       state.sourceType = 'pdf';
@@ -736,7 +1194,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       state.pages = [];
       state.activePageIndex = 0;
       state.selectedObjectId = null;
-      workspace.innerHTML = '';
+      const workspaceInner = $('workspaceInner');
+      workspaceInner.innerHTML = '';
       $('docTitle').textContent = state.fileName.replace(/-edited\.pdf$/i, '.pdf');
 
       const scale = Number(controls.renderScale.value);
@@ -768,7 +1227,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         pageWrap.style.width = pdfCanvas.style.width;
         pageWrap.style.height = pdfCanvas.style.height;
         pageWrap.append(label, pdfCanvas, overlayCanvas);
-        workspace.appendChild(pageWrap);
+        workspaceInner.appendChild(pageWrap);
 
         await pdfPage.render({ canvasContext: pdfCanvas.getContext('2d'), viewport }).promise;
 
@@ -805,7 +1264,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       state.pages = [];
       state.activePageIndex = 0;
       state.selectedObjectId = null;
-      workspace.innerHTML = '';
+      const workspaceInnerImg = $('workspaceInner');
+      workspaceInnerImg.innerHTML = '';
       $('docTitle').textContent = name;
 
       const pageWrap = document.createElement('div');
@@ -835,7 +1295,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       pageWrap.style.width = pdfCanvas.style.width;
       pageWrap.style.height = pdfCanvas.style.height;
       pageWrap.append(label, pdfCanvas, overlayCanvas);
-      workspace.appendChild(pageWrap);
+      workspaceInnerImg.appendChild(pageWrap);
 
       const pageState = {
         pdfPage: null,
@@ -895,6 +1355,46 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         }
         drawOverlay(page);
         refreshInspector();
+        return;
+      }
+
+      if (state.tool === 'manuallabel') {
+        const text = $('manualLabel').value.trim();
+        if (!text) { showToast('Enter a label first.'); return; }
+        // Use a bounding box sized relative to render scale so it looks right at any zoom
+        const halfW = 18 * page.scale;
+        const halfH = 8 * page.scale;
+        page.ocrWords.push({
+          text: text.toUpperCase(),
+          x0: pos.x - halfW,
+          y0: pos.y - halfH,
+          x1: pos.x + halfW,
+          y1: pos.y + halfH,
+          confidence: 100,
+          manual: true
+        });
+        // Re-run the regex match so the new word is evaluated immediately
+        findRegexMatches();
+        drawOverlay(page);
+        $('manualHint').textContent = `"${text.toUpperCase()}" placed. Click again to place another, or pick a different tool.`;
+        return;
+      }
+
+      if (state.tool === 'manuallabeldelete') {
+        const hit = page.ocrWords.find(w =>
+          w.manual &&
+          pos.x >= w.x0 - 4 && pos.x <= w.x1 + 4 &&
+          pos.y >= w.y0 - 4 && pos.y <= w.y1 + 4
+        );
+        if (!hit) {
+          showToast('No manual label there — click closer to a green box.');
+          return;
+        }
+        page.ocrWords = page.ocrWords.filter(w => w !== hit);
+        page.ocrMatches = page.ocrMatches.filter(w => w !== hit);
+        findRegexMatches();
+        drawOverlay(page);
+        $('manualHint').textContent = `"${hit.text}" removed. Click another to keep deleting, or pick a different tool.`;
         return;
       }
 
@@ -1203,19 +1703,39 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
 
     function drawOcrHighlights(ctx, page) {
-      if (!page.ocrMatches?.length) return;
+      if (!page.ocrMatches?.length && !page._findHighlight) return;
       ctx.save();
-      ctx.fillStyle = 'rgba(255, 221, 87, 0.34)';
-      ctx.strokeStyle = 'rgba(197, 126, 0, 0.8)';
       ctx.lineWidth = 2;
-      for (const word of page.ocrMatches) {
+
+      // Draw regex match highlights (yellow = OCR, green = manual)
+      for (const word of (page.ocrMatches || [])) {
         const x = word.x0;
         const y = word.y0;
         const width = Math.max(1, word.x1 - word.x0);
         const height = Math.max(1, word.y1 - word.y0);
+        if (word.manual) {
+          ctx.fillStyle = 'rgba(0, 200, 100, 0.28)';
+          ctx.strokeStyle = 'rgba(0, 160, 80, 0.9)';
+        } else {
+          ctx.fillStyle = 'rgba(255, 221, 87, 0.34)';
+          ctx.strokeStyle = 'rgba(197, 126, 0, 0.8)';
+        }
         ctx.fillRect(x - 2, y - 2, width + 4, height + 4);
         ctx.strokeRect(x - 2, y - 2, width + 4, height + 4);
       }
+
+      // Draw Find highlight (blue ring, no fill) on top
+      if (page._findHighlight) {
+        const w = page._findHighlight;
+        const width = Math.max(1, w.x1 - w.x0);
+        const height = Math.max(1, w.y1 - w.y0);
+        ctx.fillStyle = 'rgba(47, 111, 237, 0.18)';
+        ctx.strokeStyle = '#2f6fed';
+        ctx.lineWidth = 2.5;
+        ctx.fillRect(w.x0 - 4, w.y0 - 4, width + 8, height + 8);
+        ctx.strokeRect(w.x0 - 4, w.y0 - 4, width + 8, height + 8);
+      }
+
       ctx.restore();
     }
 
@@ -1419,7 +1939,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
     function findRegexMatches() {
       const page = getActivePage();
-      if (!page?.ocrWords?.length) return showToast('Run OCR on this page first.');
+      if (!page?.ocrWords?.length) return showToast('Run OCR on this page first, or place labels manually.');
       let regex;
       try {
         regex = new RegExp(controls.regexPattern.value, 'gi');
@@ -1438,17 +1958,81 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
     function updateOcrResult(page = getActivePage()) {
       const result = $('ocrResult');
+      const labelsBox = $('componentLabelsBox');
+      const grid = $('componentGrid');
+      const countBadge = $('componentCount');
       if (!result) return;
+
+      // Count manually placed words (regardless of whether regex has run)
+      const manualCount = (page?.ocrWords || []).filter(w => w.manual).length;
+
       if (!page?.ocrWords?.length) {
         result.textContent = 'Run OCR, then search with a regex.';
+        if (labelsBox) labelsBox.style.display = 'none';
         return;
       }
+
       if (!page.ocrMatches?.length) {
-        result.textContent = `${page.ocrWords.length} OCR words indexed. No regex matches highlighted yet.`;
+        const autoCount = page.ocrWords.length - manualCount;
+        result.textContent =
+          `${autoCount} OCR word${autoCount === 1 ? '' : 's'} indexed` +
+          (manualCount ? `, ${manualCount} manual label${manualCount === 1 ? '' : 's'} added` : '') +
+          '. No regex matches highlighted yet.';
+        if (labelsBox) labelsBox.style.display = 'none';
         return;
       }
-      result.textContent = page.ocrMatches.map((word, index) => `${index + 1}. ${word.text}`).join('\n');
+
+      // Summary line in the ocr-result box
+      const autoMatches = page.ocrMatches.filter(w => !w.manual);
+      const manualMatches = page.ocrMatches.filter(w => w.manual);
+      result.textContent =
+        `${page.ocrMatches.length} match${page.ocrMatches.length === 1 ? '' : 'es'} found` +
+        (manualMatches.length ? ` (${autoMatches.length} OCR + ${manualMatches.length} manual)` : '') +
+        ':\n' +
+        page.ocrMatches.map((word, i) =>
+          `${i + 1}. ${word.text}${word.manual ? ' ✦' : ''}`
+        ).join('\n');
+
+      // Populate component labels grid — deduplicated, sorted
+      // Build a map of label -> manual flag (manual wins if same label exists both ways)
+      if (labelsBox && grid && countBadge) {
+        const labelMap = new Map(); // label -> { manual: bool }
+        for (const word of page.ocrMatches) {
+          const key = word.text.toUpperCase();
+          const existing = labelMap.get(key);
+          // if already present as OCR and this one is manual, upgrade to manual
+          if (!existing || (!existing.manual && word.manual)) {
+            labelMap.set(key, { manual: !!word.manual });
+          }
+        }
+        const sortedLabels = [...labelMap.keys()].sort((a, b) =>
+          a.localeCompare(b, undefined, { numeric: true })
+        );
+
+        countBadge.textContent = sortedLabels.length;
+        grid.innerHTML = '';
+
+        if (sortedLabels.length === 0) {
+          grid.innerHTML = '<div class="comp-empty">No matches.</div>';
+        } else {
+          for (const label of sortedLabels) {
+            const { manual } = labelMap.get(label);
+            const chip = document.createElement('span');
+            chip.className = 'comp-chip match';
+            chip.textContent = label;
+            if (manual) {
+              chip.style.borderColor = '#00a050';
+              chip.style.background = '#edfff5';
+              chip.style.color = '#00703a';
+              chip.title = 'Manually placed';
+            }
+            grid.appendChild(chip);
+          }
+        }
+        labelsBox.style.display = 'block';
+      }
     }
+
 
     function drawSearchableTextLayer(pdfPage, sourcePage, font, rgb) {
       const words = sourcePage.ocrWords || [];
