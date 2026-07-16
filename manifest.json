@@ -1,0 +1,25 @@
+{
+  "id": "/index.html",
+  "short_name": "SOERedline",
+  "name": "SOE Redline Editor",
+  "description": "Professional PDF Layer Management and Engineering Redline Document Editor.",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#1e293b",
+  "theme_color": "#0f172a",
+  "display": "standalone",
+  "orientation": "any"
+}
