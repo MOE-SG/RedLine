@@ -1983,6 +1983,15 @@ X.B(E,Y);return E}return J}())
             <option value="4">4x</option>
           </select>
         </div>
+        <div class="field">
+          <label for="exportQuality">PDF image format</label>
+          <select id="exportQuality">
+            <option value="jpeg-low">JPEG low (smallest)</option>
+            <option value="jpeg-med" selected>JPEG medium</option>
+            <option value="jpeg-high">JPEG high</option>
+            <option value="png">PNG lossless (largest)</option>
+          </select>
+        </div>
       </div>
 
       <input id="imageInput" type="file" accept="image/*" hidden />
@@ -2263,7 +2272,7 @@ X.B(E,Y);return E}return J}())
     const toast = $('toast');
 
     const controls = {
-      pdfInput: $('pdfInput'), renderScale: $('renderScale'), exportScale: $('exportScale'), rerenderBtn: $('rerenderBtn'),
+      pdfInput: $('pdfInput'), renderScale: $('renderScale'), exportScale: $('exportScale'), exportQuality: $('exportQuality'), rerenderBtn: $('rerenderBtn'),
       strokeColor: $('strokeColor'), fillColor: $('fillColor'), lineWidth: $('lineWidth'), opacity: $('opacity'), fillOpacity: $('fillOpacity'), fillMode: $('fillMode'),
       textValue: $('textValue'), fontSize: $('fontSize'), fontFamily: $('fontFamily'), imageInput: $('imageInput'),
       ocrLang: $('ocrLang'), regexPattern: $('regexPattern'), ocrActiveBtn: $('ocrActiveBtn'), ocrAllBtn: $('ocrAllBtn'), findRegexBtn: $('findRegexBtn')
@@ -3215,15 +3224,43 @@ X.B(E,Y);return E}return J}())
       const { PDFDocument, StandardFonts, rgb } = PDFLib;
       const outPdf = await PDFDocument.create();
       const ocrFont = await outPdf.embedFont(StandardFonts.Helvetica);
+
+      // Determine image format and quality from selector
+      const qualityOption = controls.exportQuality?.value || 'jpeg-med';
+      const useJpeg = qualityOption !== 'png';
+      const jpegQuality = qualityOption === 'jpeg-low' ? 0.5
+                        : qualityOption === 'jpeg-high' ? 0.95
+                        : 0.75;  // jpeg-med default
+      const mimeType = useJpeg ? 'image/jpeg' : 'image/png';
+      const exportScale = Number(controls.exportScale.value);
+
       for (let i = 0; i < state.pages.length; i++) {
-        const canvas = await renderFlattenedPage(i, 2);
-        const pngBytes = await canvasToArrayBuffer(canvas, 'image/png');
-        const png = await outPdf.embedPng(pngBytes);
+        setStatus(`Exporting page ${i + 1} of ${state.pages.length}...`);
+        const canvas = await renderFlattenedPage(i, exportScale);
         const sourcePage = state.pages[i];
         const page = outPdf.addPage([sourcePage.widthPt, sourcePage.heightPt]);
-        page.drawImage(png, { x: 0, y: 0, width: sourcePage.widthPt, height: sourcePage.heightPt });
+
+        if (useJpeg) {
+          // JPEG: must composite onto white background first (JPEG has no alpha)
+          const flatCanvas = document.createElement('canvas');
+          flatCanvas.width = canvas.width;
+          flatCanvas.height = canvas.height;
+          const flatCtx = flatCanvas.getContext('2d');
+          flatCtx.fillStyle = '#ffffff';
+          flatCtx.fillRect(0, 0, flatCanvas.width, flatCanvas.height);
+          flatCtx.drawImage(canvas, 0, 0);
+          const jpegBytes = await canvasToArrayBuffer(flatCanvas, mimeType, jpegQuality);
+          const jpg = await outPdf.embedJpg(jpegBytes);
+          page.drawImage(jpg, { x: 0, y: 0, width: sourcePage.widthPt, height: sourcePage.heightPt });
+        } else {
+          const pngBytes = await canvasToArrayBuffer(canvas, mimeType);
+          const png = await outPdf.embedPng(pngBytes);
+          page.drawImage(png, { x: 0, y: 0, width: sourcePage.widthPt, height: sourcePage.heightPt });
+        }
+
         drawSearchableTextLayer(page, sourcePage, ocrFont, rgb);
       }
+
       const bytes = await outPdf.save();
       downloadBlob(new Blob([bytes], { type: 'application/pdf' }), state.fileName);
       setStatus('Edited PDF exported.');
@@ -3233,42 +3270,20 @@ X.B(E,Y);return E}return J}())
       const page = state.pages[pageIndex];
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-
-      // Cap canvas size to avoid null context on large TIF files
-      const MAX_PX = 8192;
-
       if (page.pdfPage) {
-        // PDF: re-render at export scale for full quality
-        const exportScale = page.scale * multiplier;
-        const baseViewport = page.pdfPage.getViewport({ scale: exportScale });
-        canvas.width  = Math.min(Math.floor(baseViewport.width),  MAX_PX);
-        canvas.height = Math.min(Math.floor(baseViewport.height), MAX_PX);
-        const actualScale = exportScale * (canvas.width / baseViewport.width);
-        const scaledViewport = page.pdfPage.getViewport({ scale: actualScale });
-        await page.pdfPage.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
-        // Objects are stored in pdfCanvas pixel coords (page.scale); scale up to export
-        const overlayScale = actualScale / page.scale;
-        ctx.save();
-        ctx.scale(overlayScale, overlayScale);
-        for (const object of page.objects) drawObject(ctx, object, false);
-        ctx.restore();
-
+        const baseViewport = page.pdfPage.getViewport({ scale: page.scale * multiplier });
+        canvas.width = Math.floor(baseViewport.width);
+        canvas.height = Math.floor(baseViewport.height);
+        await page.pdfPage.render({ canvasContext: ctx, viewport: baseViewport }).promise;
       } else {
-        // Image / TIF: pdfCanvas already rendered at page.scale
-        const natW = page.widthPt  || (page.pdfCanvas.width  / page.scale);
-        const natH = page.heightPt || (page.pdfCanvas.height / page.scale);
-        canvas.width  = Math.min(Math.floor(natW * page.scale * multiplier), MAX_PX);
-        canvas.height = Math.min(Math.floor(natH * page.scale * multiplier), MAX_PX);
+        canvas.width = Math.floor(page.pdfCanvas.width * multiplier);
+        canvas.height = Math.floor(page.pdfCanvas.height * multiplier);
         ctx.drawImage(page.pdfCanvas, 0, 0, canvas.width, canvas.height);
-        // Scale overlay to match: pdfCanvas coords → export canvas coords
-        const overlayScaleX = canvas.width  / page.pdfCanvas.width;
-        const overlayScaleY = canvas.height / page.pdfCanvas.height;
-        ctx.save();
-        ctx.scale(overlayScaleX, overlayScaleY);
-        for (const object of page.objects) drawObject(ctx, object, false);
-        ctx.restore();
       }
-
+      ctx.save();
+      ctx.scale(multiplier, multiplier);
+      for (const object of page.objects) drawObject(ctx, object, false);
+      ctx.restore();
       return canvas;
     }
 
@@ -3470,12 +3485,12 @@ X.B(E,Y);return E}return J}())
       return dataUrls;
     }
 
-    function canvasToBlob(canvas, type) {
-      return new Promise((resolve) => canvas.toBlob(resolve, type));
+    function canvasToBlob(canvas, type, quality) {
+      return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
     }
 
-    async function canvasToArrayBuffer(canvas, type) {
-      const blob = await canvasToBlob(canvas, type);
+    async function canvasToArrayBuffer(canvas, type, quality) {
+      const blob = await canvasToBlob(canvas, type, quality);
       return await blob.arrayBuffer();
     }
 
