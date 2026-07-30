@@ -3233,20 +3233,42 @@ X.B(E,Y);return E}return J}())
       const page = state.pages[pageIndex];
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
+
+      // Cap canvas size to avoid null context on large TIF files
+      const MAX_PX = 8192;
+
       if (page.pdfPage) {
-        const baseViewport = page.pdfPage.getViewport({ scale: page.scale * multiplier });
-        canvas.width = Math.floor(baseViewport.width);
-        canvas.height = Math.floor(baseViewport.height);
-        await page.pdfPage.render({ canvasContext: ctx, viewport: baseViewport }).promise;
+        // PDF: re-render at export scale for full quality
+        const exportScale = page.scale * multiplier;
+        const baseViewport = page.pdfPage.getViewport({ scale: exportScale });
+        canvas.width  = Math.min(Math.floor(baseViewport.width),  MAX_PX);
+        canvas.height = Math.min(Math.floor(baseViewport.height), MAX_PX);
+        const actualScale = exportScale * (canvas.width / baseViewport.width);
+        const scaledViewport = page.pdfPage.getViewport({ scale: actualScale });
+        await page.pdfPage.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+        // Objects are stored in pdfCanvas pixel coords (page.scale); scale up to export
+        const overlayScale = actualScale / page.scale;
+        ctx.save();
+        ctx.scale(overlayScale, overlayScale);
+        for (const object of page.objects) drawObject(ctx, object, false);
+        ctx.restore();
+
       } else {
-        canvas.width = Math.floor(page.pdfCanvas.width * multiplier);
-        canvas.height = Math.floor(page.pdfCanvas.height * multiplier);
+        // Image / TIF: pdfCanvas already rendered at page.scale
+        const natW = page.widthPt  || (page.pdfCanvas.width  / page.scale);
+        const natH = page.heightPt || (page.pdfCanvas.height / page.scale);
+        canvas.width  = Math.min(Math.floor(natW * page.scale * multiplier), MAX_PX);
+        canvas.height = Math.min(Math.floor(natH * page.scale * multiplier), MAX_PX);
         ctx.drawImage(page.pdfCanvas, 0, 0, canvas.width, canvas.height);
+        // Scale overlay to match: pdfCanvas coords → export canvas coords
+        const overlayScaleX = canvas.width  / page.pdfCanvas.width;
+        const overlayScaleY = canvas.height / page.pdfCanvas.height;
+        ctx.save();
+        ctx.scale(overlayScaleX, overlayScaleY);
+        for (const object of page.objects) drawObject(ctx, object, false);
+        ctx.restore();
       }
-      ctx.save();
-      ctx.scale(multiplier, multiplier);
-      for (const object of page.objects) drawObject(ctx, object, false);
-      ctx.restore();
+
       return canvas;
     }
 
